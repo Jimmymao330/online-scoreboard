@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>計分板</title>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --number-bg: #111111;
+            --text-main: #ffffff;
+            --text-muted: #888888;
+            --border-color: #333333;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            /* 使用 dvh 確保在行動裝置瀏覽器上不會被網址列影響高度 */
+            height: 100dvh; 
+            overflow: hidden;
+            font-weight: 300;
+        }
+
+        /* 讓容器盡可能撐滿平板寬度 */
+        .app-container {
+            width: 100%;
+            max-width: 900px; /* 放寬到 900px，適應大尺寸 iPad */
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            padding: 2vh 4vw 4vh 4vw;
+            gap: 2vh;
+        }
+
+        /* 頂部名稱輸入 */
+        .header {
+            text-align: center;
+        }
+        .name-input {
+            width: 90%;
+            background: transparent;
+            border: none;
+            color: var(--text-main);
+            font-size: clamp(1.2rem, 3vw, 1.8rem);
+            font-weight: 400;
+            text-align: center;
+            padding: 5px;
+            letter-spacing: 3px;
+            border-bottom: 1px solid transparent;
+            transition: border-color 0.4s ease;
+        }
+        .name-input::placeholder { color: #444; }
+        .name-input:focus { outline: none; border-bottom: 1px solid var(--text-muted); }
+
+        /* 區塊排版 */
+        .section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1.5vh;
+            width: 100%;
+        }
+
+        /* 🌟 核心魔法：讓主分數區自動撐滿剩餘的所有高度 */
+        .score-section {
+            flex: 1; 
+        }
+
+        .section-title {
+            color: var(--text-muted);
+            font-size: clamp(0.8rem, 2vw, 1rem);
+            font-weight: 600;
+            letter-spacing: 5px;
+            margin-bottom: -5px;
+        }
+
+        /* 翻頁數字卡片：滿版寬高 */
+        .flip-card {
+            background-color: var(--number-bg);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.9);
+            cursor: pointer;
+            position: relative;
+            perspective: 1000px;
+        }
+        
+        /* 分數卡片：高度佔滿 flex:1 的空間 */
+        .flip-card.score-card { 
+            flex: 1; 
+            min-height: 25vh; /* 確保最小高度 */
+        }
+        
+        /* 違規卡片：保持相對較小但也能縮放 */
+        .flip-card.violation-card { 
+            height: clamp(100px, 15vh, 180px); 
+            width: 80%;
+            max-width: 400px;
+        }
+        
+        /* 🌟 數字字體：動態極大化計算 */
+        .number {
+            font-weight: 700; /* 加到最粗，確保遠距可見 */
+            display: inline-block;
+            transition: transform 0.15s ease-in-out;
+            color: var(--text-main);
+            line-height: 1;
+        }
+        /* 利用 min(寬度比例, 高度比例) 讓字體永遠保持在框內最大狀態 */
+        .score-card .number { font-size: min(45vw, 32vh); }
+        .violation-card .number { font-size: min(20vw, 12vh); }
+
+        /* 翻頁動畫 */
+        .flip-animate {
+            animation: flipEffect 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+        @keyframes flipEffect {
+            0% { transform: rotateX(0deg); opacity: 1; }
+            50% { transform: rotateX(90deg); opacity: 0.4; }
+            100% { transform: rotateX(0deg); opacity: 1; }
+        }
+
+        /* 按鈕區：隨螢幕微調大小 */
+        .controls {
+            display: flex;
+            gap: 3vw;
+            justify-content: center;
+        }
+        .btn {
+            background-color: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            border-radius: 50%;
+            width: clamp(45px, 6vw, 60px); 
+            height: clamp(45px, 6vw, 60px);
+            font-size: clamp(1rem, 2vw, 1.3rem);
+            font-weight: 400;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: all 0.2s ease;
+        }
+        .btn:active {
+            background-color: var(--text-main);
+            color: var(--bg-color);
+            transform: scale(0.9);
+            border-color: var(--text-main);
+        }
+
+        /* 底部功能按鈕 */
+        .bottom-actions {
+            display: flex;
+            gap: 4vw;
+            margin-top: 2vh;
+            justify-content: center;
+        }
+        .action-btn {
+            background-color: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border-color);
+            padding: clamp(10px, 2vh, 15px) clamp(20px, 4vw, 35px);
+            border-radius: 999px;
+            font-size: clamp(0.85rem, 1.5vw, 1rem);
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .action-btn:active {
+            background-color: var(--text-muted);
+            color: var(--bg-color);
+        }
+
+        /* 歷史記錄 Modal (保持不變) */
+        .modal-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .modal-overlay.active { display: flex; opacity: 1; }
+        
+        .modal-content {
+            background-color: #151515;
+            width: 85%;
+            max-width: 400px;
+            height: 65vh;
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            padding: 24px;
+            border: 1px solid rgba(255,255,255,0.08);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.8);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 20px;
+        }
+        .modal-title { font-size: 1.2rem; font-weight: 500; letter-spacing: 1px; }
+        .close-btn { 
+            background: none; border: none; color: var(--text-muted); 
+            font-size: 1.4rem; cursor: pointer; transition: color 0.2s;
+        }
+        .close-btn:active { color: var(--text-main); }
+        
+        .history-list {
+            flex: 1;
+            overflow-y: auto;
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            border-top: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            padding: 10px 0;
+        }
+        .history-list::-webkit-scrollbar { width: 0px; } 
+
+        .history-item {
+            padding: 14px 0;
+            font-size: 0.95rem;
+            color: #e5e5ea;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            display: flex;
+            justify-content: space-between;
+        }
+        .history-item:last-child { border-bottom: none; }
+        .history-time { color: var(--text-muted); font-size: 0.8rem; }
+        
+        .modal-footer { margin-top: 20px; display: flex; justify-content: center; }
+        .btn-clear-history { 
+            background-color: transparent; 
+            color: #ff453a; 
+            padding: 12px 24px; 
+            border: 1px solid rgba(255, 69, 58, 0.3); 
+            border-radius: 999px; 
+            font-size: 0.9rem; 
+            cursor: pointer; 
+            transition: all 0.2s;
+        }
+        .btn-clear-history:active {
+            background-color: #ff453a;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- 頂部名稱區 -->
+        <div class="header">
+            <input type="text" id="playerName" class="name-input" placeholder="TAP TO NAME">
+        </div>
+
+        <!-- 主分數區 (加入 score-section 讓它撐滿高度) -->
+        <div class="section score-section">
+            <div class="section-title">SCORE</div>
+            <div class="flip-card score-card" onclick="updateScore(1, '點擊面板')">
+                <span class="number" id="scoreDisplay">0</span>
+            </div>
+            <div class="controls">
+                <button class="btn" onclick="updateScore(-1, '按鈕')">-1</button>
+                <button class="btn" onclick="updateScore(1, '按鈕')">+1</button>
+                <button class="btn" onclick="updateScore(2, '按鈕')">+2</button>
+                <button class="btn" onclick="updateScore(3, '按鈕')">+3</button>
+            </div>
+        </div>
+
+        <!-- 違規次數區 -->
+        <div class="section">
+            <div class="section-title">FOULS</div>
+            <div class="flip-card violation-card">
+                <span class="number" id="foulDisplay">0</span>
+            </div>
+            <div class="controls">
+                <button class="btn" onclick="updateFoul(-1)">-1</button>
+                <button class="btn" onclick="updateFoul(1)">+1</button>
+            </div>
+        </div>
+
+        <!-- 底部控制 -->
+        <div class="bottom-actions">
+            <button class="action-btn" onclick="toggleModal(true)">歷史記錄</button>
+            <button class="action-btn" onclick="resetGame()">重新開始</button>
+        </div>
+    </div>
+
+    <!-- 歷史記錄 Modal -->
+    <div class="modal-overlay" id="historyModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span class="modal-title">History</span>
+                <button class="close-btn" onclick="toggleModal(false)">✕</button>
+            </div>
+            <ul class="history-list" id="historyList">
+                <!-- 記錄會動態插入在這裡 -->
+            </ul>
+            <div class="modal-footer">
+                <button class="btn-clear-history" onclick="clearHistory()">清空記錄</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let state = { name: '', score: 0, fouls: 0 };
+        let historyLog = [];
+
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const foulDisplay = document.getElementById('foulDisplay');
+        const nameInput = document.getElementById('playerName');
+        const historyList = document.getElementById('historyList');
+        const historyModal = document.getElementById('historyModal');
+
+        function init() {
+            const savedState = localStorage.getItem('sb_state_fluid');
+            const savedHistory = localStorage.getItem('sb_history_fluid');
+
+            if (savedState) state = JSON.parse(savedState);
+            if (savedHistory) historyLog = JSON.parse(savedHistory);
+
+            nameInput.value = state.name;
+            updateUI(scoreDisplay, state.score, false);
+            updateUI(foulDisplay, state.fouls, false);
+            renderHistory();
+
+            nameInput.addEventListener('input', (e) => {
+                state.name = e.target.value;
+                saveData();
+            });
+        }
+
+        function updateUI(element, value, animate = true) {
+            if (animate) {
+                element.classList.remove('flip-animate');
+                void element.offsetWidth;
+                element.classList.add('flip-animate');
+                
+                setTimeout(() => { element.innerText = value; }, 150);
+            } else {
+                element.innerText = value;
+            }
+        }
+
+        function updateScore(amount, method) {
+            if (state.score + amount < 0) return; 
+            state.score += amount;
+            updateUI(scoreDisplay, state.score);
+            
+            const actionText = amount > 0 ? `+${amount}` : `${amount}`;
+            addLog(`Score ${actionText}`, `Total: ${state.score}`);
+            saveData();
+        }
+
+        function updateFoul(amount) {
+            if (state.fouls + amount < 0) return;
+            state.fouls += amount;
+            updateUI(foulDisplay, state.fouls);
+            
+            const actionText = amount > 0 ? `+${amount}` : `${amount}`;
+            addLog(`Foul ${actionText}`, `Total: ${state.fouls}`);
+            saveData();
+        }
+
+        function resetGame() {
+            if (confirm('確定要歸零「分數」與「違規次數」嗎？\n(歷史記錄會保留)')) {
+                state.score = 0;
+                state.fouls = 0;
+                updateUI(scoreDisplay, state.score);
+                updateUI(foulDisplay, state.fouls);
+                addLog('Match Reset', '0 - 0');
+                saveData();
+            }
+        }
+
+        function addLog(action, detail) {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', second:'2-digit' });
+            
+            historyLog.unshift({ time: timeString, action: action, detail: detail });
+            renderHistory();
+        }
+
+        function renderHistory() {
+            historyList.innerHTML = '';
+            if (historyLog.length === 0) {
+                historyList.innerHTML = '<li style="text-align:center; color:#555; margin-top:20px; font-size:0.85rem;">No records yet</li>';
+                return;
+            }
+
+            historyLog.forEach(log => {
+                const li = document.createElement('li');
+                li.className = 'history-item';
+                li.innerHTML = `
+                    <span>${log.action} <span style="color:#888; font-size:0.85rem; margin-left:8px;">${log.detail}</span></span>
+                    <span class="history-time">${log.time}</span>
+                `;
+                historyList.appendChild(li);
+            });
+        }
+
+        function clearHistory() {
+            if (confirm('確定要清空所有記錄嗎？')) {
+                historyLog = [];
+                renderHistory();
+                saveData();
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem('sb_state_fluid', JSON.parse(JSON.stringify(state)));
+            localStorage.setItem('sb_history_fluid', JSON.stringify(historyLog));
+        }
+
+        function toggleModal(show) {
+            if (show) {
+                historyModal.style.display = 'flex';
+                setTimeout(() => historyModal.classList.add('active'), 10);
+            } else {
+                historyModal.classList.remove('active');
+                setTimeout(() => historyModal.style.display = 'none', 300);
+            }
+        }
+
+        historyModal.addEventListener('click', (e) => {
+            if (e.target === historyModal) toggleModal(false);
+        });
+
+        init();
+    </script>
+</body>
+</html>
