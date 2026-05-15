@@ -2,7 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <!-- 鎖定視角比例，禁用原生的雙指縮放與雙擊放大 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>計分板</title>
     <style>
         :root {
@@ -16,26 +17,41 @@
         * {
             box-sizing: border-box;
             font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif;
+            /* 1. 禁用點擊閃爍 */
             -webkit-tap-highlight-color: transparent;
+            /* 2. 禁用長按選取文字或連點反白 (非常重要) */
+            -webkit-user-select: none;
+            user-select: none;
         }
 
-        body {
+        /* 允許名稱輸入框可以正常輸入與選取文字 */
+        input {
+            -webkit-user-select: text;
+            user-select: text;
+        }
+
+        html, body {
             margin: 0;
             padding: 0;
             background-color: var(--bg-color);
             color: var(--text-main);
             display: flex;
             justify-content: center;
-            /* 使用 dvh 確保在行動裝置瀏覽器上不會被網址列影響高度 */
+            /* 使用 dvh 確保在行動裝置不會被網址列擠壓溢出 */
             height: 100dvh; 
+            width: 100vw;
             overflow: hidden;
             font-weight: 300;
+            
+            /* 3. 徹底禁用 iOS 邊緣回彈與下拉更新 */
+            overscroll-behavior: none;
+            /* 4. 禁用全域滑動手勢與雙擊放大 */
+            touch-action: none;
         }
 
-        /* 讓容器盡可能撐滿平板寬度 */
         .app-container {
             width: 100%;
-            max-width: 900px; /* 放寬到 900px，適應大尺寸 iPad */
+            max-width: 900px;
             height: 100%;
             display: flex;
             flex-direction: column;
@@ -72,10 +88,7 @@
             width: 100%;
         }
 
-        /* 🌟 核心魔法：讓主分數區自動撐滿剩餘的所有高度 */
-        .score-section {
-            flex: 1; 
-        }
+        .score-section { flex: 1; }
 
         .section-title {
             color: var(--text-muted);
@@ -85,7 +98,7 @@
             margin-bottom: -5px;
         }
 
-        /* 翻頁數字卡片：滿版寬高 */
+        /* 翻頁數字卡片 */
         .flip-card {
             background-color: var(--number-bg);
             border-radius: 20px;
@@ -99,33 +112,20 @@
             position: relative;
             perspective: 1000px;
         }
+        .flip-card.score-card { flex: 1; min-height: 25vh; }
+        .flip-card.violation-card { height: clamp(100px, 15vh, 180px); width: 80%; max-width: 400px; }
         
-        /* 分數卡片：高度佔滿 flex:1 的空間 */
-        .flip-card.score-card { 
-            flex: 1; 
-            min-height: 25vh; /* 確保最小高度 */
-        }
-        
-        /* 違規卡片：保持相對較小但也能縮放 */
-        .flip-card.violation-card { 
-            height: clamp(100px, 15vh, 180px); 
-            width: 80%;
-            max-width: 400px;
-        }
-        
-        /* 🌟 數字字體：動態極大化計算 */
+        /* 數字字體 */
         .number {
-            font-weight: 700; /* 加到最粗，確保遠距可見 */
+            font-weight: 700;
             display: inline-block;
             transition: transform 0.15s ease-in-out;
             color: var(--text-main);
             line-height: 1;
         }
-        /* 利用 min(寬度比例, 高度比例) 讓字體永遠保持在框內最大狀態 */
         .score-card .number { font-size: min(45vw, 32vh); }
         .violation-card .number { font-size: min(20vw, 12vh); }
 
-        /* 翻頁動畫 */
         .flip-animate {
             animation: flipEffect 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         }
@@ -135,7 +135,7 @@
             100% { transform: rotateX(0deg); opacity: 1; }
         }
 
-        /* 按鈕區：隨螢幕微調大小 */
+        /* 按鈕區 */
         .controls {
             display: flex;
             gap: 3vw;
@@ -154,7 +154,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            transition: all 0.2s ease;
+            transition: all 0.1s ease; /* 縮短動畫時間，讓連按手感更清脆 */
         }
         .btn:active {
             background-color: var(--text-main);
@@ -179,14 +179,14 @@
             font-size: clamp(0.85rem, 1.5vw, 1rem);
             letter-spacing: 1px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
         }
         .action-btn:active {
             background-color: var(--text-muted);
             color: var(--bg-color);
         }
 
-        /* 歷史記錄 Modal (保持不變) */
+        /* 歷史記錄 Modal */
         .modal-overlay {
             position: fixed;
             top: 0; left: 0; width: 100%; height: 100%;
@@ -236,6 +236,10 @@
             border-top: 1px solid var(--border-color);
             border-bottom: 1px solid var(--border-color);
             padding: 10px 0;
+            
+            /* 單獨開放歷史記錄列表的上下滑動權限 */
+            touch-action: pan-y;
+            overscroll-behavior: contain;
         }
         .history-list::-webkit-scrollbar { width: 0px; } 
 
@@ -275,7 +279,7 @@
             <input type="text" id="playerName" class="name-input" placeholder="TAP TO NAME">
         </div>
 
-        <!-- 主分數區 (加入 score-section 讓它撐滿高度) -->
+        <!-- 主分數區 -->
         <div class="section score-section">
             <div class="section-title">SCORE</div>
             <div class="flip-card score-card" onclick="updateScore(1, '點擊面板')">
@@ -325,6 +329,16 @@
     </div>
 
     <script>
+        // --- 核心防護層 (JavaScript 雙重保險) ---
+        // 防止 iOS Safari 等瀏覽器的滑動回彈與強制滾動，但避開輸入框與歷史記錄
+        document.addEventListener('touchmove', function(e) {
+            const isHistoryList = e.target.closest('.history-list');
+            if (!isHistoryList) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+
+        // --- 計分板邏輯 ---
         let state = { name: '', score: 0, fouls: 0 };
         let historyLog = [];
 
